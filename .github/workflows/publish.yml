@@ -1,4 +1,4 @@
-# Publishes n8n-nodes-wayvz to npm on every version tag push.
+# Stages n8n-nodes-wayvz on npm on every version tag push; a maintainer approves it.
 #
 # Based on the publish.yml of the official n8n-nodes-starter
 # (https://github.com/n8n-io/n8n-nodes-starter/blob/master/.github/workflows/publish.yml).
@@ -78,12 +78,19 @@ jobs:
       - name: Run unit tests
         run: 'npm test'
 
-      - name: Release
-        # Publishes to npm with a provenance statement. Lint and build run as
-        # part of the release. With OIDC leave NPM_TOKEN unset; with a token it
-        # is written to .npmrc first.
+      - name: Update npm
+        # npm stage publish needs a recent npm (11.17 or later).
+        run: 'npm install -g npm@latest'
+
+      - name: Stage release on npm
+        # Staged publishing: npm trusts this workflow (OIDC Trusted Publisher, no
+        # stored token) but only to STAGE the version, with a provenance
+        # statement. A maintainer then approves it on npmjs.com with 2FA
+        # (npm stage list / npm stage approve <id>), and only then is it public.
+        # The npm Trusted Publisher for this package allows staging only.
         run: |
-          [ -n "$NPM_TOKEN" ] && npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
-          npm run release
+          npm run lint
+          npm run build
+          npm stage publish . --provenance --access public
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_MODE: 'true'
