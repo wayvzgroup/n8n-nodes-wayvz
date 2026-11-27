@@ -1,0 +1,89 @@
+# Publishes n8n-nodes-wayvz to npm on every version tag push.
+#
+# Based on the publish.yml of the official n8n-nodes-starter
+# (https://github.com/n8n-io/n8n-nodes-starter/blob/master/.github/workflows/publish.yml).
+#
+# Since 1 May 2026 n8n only verifies community nodes that are published from
+# GitHub Actions with an npm provenance statement. This workflow does that.
+#
+# WHERE THIS FILE MUST LIVE
+#
+# GitHub only runs workflows from .github/workflows at the root of a
+# repository. This package is meant to be pushed as its own public GitHub
+# repository (n8n checks that the npm repository URL matches it), so this file
+# is already in the right place relative to package.json. If you keep the
+# package inside a larger repository instead, move this file to that
+# repository's .github/workflows folder and add
+#   defaults:
+#     run:
+#       working-directory: integrations/n8n-nodes-wayvz
+# to the job.
+#
+# REQUIREMENTS
+#
+# @n8n/node-cli 0.23.0 or later must be a dev dependency (this package pins
+# ^0.58.7). Older versions do not pass the provenance flag.
+#
+# ONE-TIME SETUP
+#
+# Option A, OIDC Trusted Publishing (recommended, no long-lived secret):
+#   1. On npmjs.com open the package settings.
+#   2. Under Publish access, Trusted Publishers, click Add a publisher.
+#   3. Choose GitHub Actions and enter the repository owner, the repository
+#      name and the workflow file name publish.yml.
+#   4. Leave the NPM_TOKEN secret unset.
+#
+# Option B, npm granular access token:
+#   1. On npmjs.com create a Granular Access Token with read and write
+#      publish permission for this package.
+#   2. In GitHub add it as the Actions secret NPM_TOKEN.
+#
+# Both options publish with provenance.
+#
+# RELEASING
+#
+# Run `npm run release` locally. It lints, builds, asks for the version bump,
+# updates the changelog, commits, tags and pushes. The tag starts this workflow.
+# Tags look like 0.2.0. For tags like v0.2.0 change the filter to 'v*.*.*'.
+
+name: Publish
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Needed to mint the OIDC token for the npm provenance statement.
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: 'npm ci'
+
+      - name: Run unit tests
+        run: 'npm test'
+
+      - name: Release
+        # Publishes to npm with a provenance statement. Lint and build run as
+        # part of the release. With OIDC leave NPM_TOKEN unset; with a token it
+        # is written to .npmrc first.
+        run: |
+          [ -n "$NPM_TOKEN" ] && npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+          npm run release
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
